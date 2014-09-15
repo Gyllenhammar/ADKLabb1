@@ -1,0 +1,9 @@
+
+Ang. if(RAFindex.readInt() == 0 && index1pos != 3597):
+Den enda gången positionen kan vara 0 är för den första bokstavskombinationen (mer exakt ‘a’). Detta gör att man måste lägga till ett undantag för den.
+
+Ang. word2pos = word1pos:
+Det finns ett fall där det inte finns en “nästa position” detta är då de tre första bokstäverna är den sista bokstavskombinationen. Då måste ordet finnas mellan word1pos och EOF.
+
+Test 1 Konkordans:
+Det första som skall hända är att man först tittar om/var ordet finns i filen med hashade indexar. Jag testade detta genom att mata in olika textkombinationer och se om programmet tar ut rätt ord.
