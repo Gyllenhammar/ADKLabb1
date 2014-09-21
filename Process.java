@@ -10,23 +10,39 @@ public class Process {
     {
         RandomAccessFile RAFin;
         RandomAccessFile RAFout;
+        RandomAccessFile RAFfreq;
 
         long startTime = System.currentTimeMillis();
 
         try {
-            RAFin = new RandomAccessFile( "/Users/andredanielsson/Documents/adk/ut", "r" );
-            File indexFile = new File( "/Users/andredanielsson/Documents/index" );
+            RAFin = new RandomAccessFile( "ut", "r" );
+            File indexFile = new File( "index" );
+            File freqFile = new File("freq");
 
             // Om det inte finns en fil för index, skapa en ny fil.
             if (indexFile.exists() == false)
                 indexFile.createNewFile();
             RAFout = new RandomAccessFile(indexFile, "rw");
 
+            // Om det inte finns en fil för freq, skapa en ny fil.
+            if (freqFile.exists() == false)
+                freqFile.createNewFile();
+            RAFfreq = new RandomAccessFile(freqFile, "rw");
+
             int tempdata; // Innehåller den genererade positionen från hashFunction
             int temppos = 0; // Innehåller den nuvarande positionen i filen "ut"
             String line = null; // Innehåller en rad text från filen "ut"
             byte[] compare = null; // Innehåller de senaste en/två/tre bokstavskombinationer
-            Pattern pattern = Pattern.compile(" ");
+            Pattern pattern = Pattern.compile(" "); // Används för att dela raderna
+            long freqpos = 0; // Anger nästa position att skriva på i frekvensfilen
+            int wordCounter = 0; // Håller reda på hur ofta av ett visst ord som förekommer
+
+            String counterString = RAFin.readLine(); // 
+            String[] counterSplit = pattern.split(counterString);
+            counterString = counterSplit[0];
+
+            String tempString = null; // Används för att skriva en sträng med ett visst format till RAFfreq
+            RAFin.seek(0); // Återgår till position 0
             
             // Loopa igenom alla rader i ut-filen
             // Tar ut hashat ORD och POSITION samt skriver dessa
@@ -40,23 +56,48 @@ public class Process {
                 // de en/två/tre första bokstäverna
                 byte[] tempCompare = getWord(split[0]);
 
-                if(Arrays.equals(compare, tempCompare) == false) {
-                    compare = tempCompare;
+                // Skriver i filen som innehåller ett ords frekvens
+                if(containsWord(counterString, line) == true)
+                    wordCounter++;
+                else {
+                    tempString = counterString + " " + wordCounter + "\n";
+                    RAFfreq.seek(freqpos);
+                    RAFfreq.write(tempString.getBytes("ISO-8859-1"));
+                    wordCounter = 1;
+                    counterString = split[0];
+                    freqpos = RAFfreq.getFilePointer();
 
-                    tempdata = extractData(line);
+                    // Om EOF, skriv det sista ordet
+                    if(RAFin.getFilePointer() >= RAFin.length()){
+                        tempString = counterString + " " + wordCounter + "\n";
+                        RAFfreq.seek(freqpos);
+                        RAFfreq.write(tempString.getBytes("ISO-8859-1"));
+                        wordCounter = 1;
+                        counterString = split[0];
+                        freqpos = RAFfreq.getFilePointer();
+                    }
+
+                }
+
+                // Sriver orden till den binärlagrade filen
+                if(Arrays.equals(compare, tempCompare) == false) {
+                    compare = tempCompare; // Uppdatera compare
+
+                    tempdata = extractData(line); // Ta ut vilken position man ska skriva data i RAFout
                     RAFout.seek((long)tempdata);
-                    RAFout.writeInt(temppos);
+                    RAFout.writeInt(temppos); // Skriver positionen för ett hashat ord
                 }
                 temppos = (int)RAFin.getFilePointer();
             }
 
-
             RAFin.close();
             RAFout.close();
+            RAFfreq.close();
         }
         catch (IOException e) {
             e.printStackTrace();
         }
+
 
 
         // Tar fram programmets körtid
@@ -144,7 +185,7 @@ public class Process {
 
     /*
      * Tar in en string s med format "ORD POSITION"
-     * och returnerar hashvärde
+     * och returnerar dess hashvärde
      */
     private static int extractData(String s){
         int returnValue = 0;
@@ -163,6 +204,24 @@ public class Process {
             returnValue = returnValue * 4 - 3;
 
         return returnValue;
+    }
+
+    /*
+     * Tar in två ord och jämför orden fram till ett mellanslag
+     * Är de samma ord returneras true annars false
+     */
+    private static boolean containsWord(String s1, String s2){
+        if (s1 == null || s2 == null) {
+            return false;
+        }
+        s1 += " ";
+
+        for (int i = 0; i < s1.length(); i++) {
+            if(s1.charAt(i) != s2.charAt(i))
+                return false;
+        }
+
+        return true;
     }
 
 }
