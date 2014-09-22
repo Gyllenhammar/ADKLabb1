@@ -11,16 +11,14 @@ public class Konkordans{
         
         long startTime = System.currentTimeMillis();
         try {
-            RandomAccessFile RAFindex = new RandomAccessFile("index", "r");
-            RandomAccessFile RAFut = new RandomAccessFile("ut", "r");
-            RandomAccessFile RAFkorpus = new RandomAccessFile("korpus", "r");
+            RandomAccessFile RAFindex = new RandomAccessFile("/Users/andredanielsson/Documents/adklab1/index", "r");
+            RandomAccessFile RAFut = new RandomAccessFile("/Users/andredanielsson/Documents/adk/ut", "r");
+            RandomAccessFile RAFkorpus = new RandomAccessFile("/Users/andredanielsson/Documents/adk/korpus", "r");
+            RandomAccessFile RAFfreq = new RandomAccessFile("/Users/andredanielsson/Documents/adklab1/freq", "r");
 
             if(args.length == 1) {
                 byte[] word1 = getWord(args[0]);
                 int ut2pos = 0;
-                ArrayList<String> wordWithIndex = new ArrayList<String>();
-                ArrayList<String> word = new ArrayList<String>();
-                ArrayList<Integer> index = new ArrayList<Integer>();
                 String line;
 
                 int indexpos = hashFunction(word1)*4-3; // Innehåller positionen för det sökta ordet i 'index'
@@ -48,7 +46,7 @@ public class Konkordans{
                 long stopTime = System.currentTimeMillis();
                 long totalTime = stopTime-startTime;
 
-                io.println("Tid efter att hitta nästa bokstavskomb: " + totalTime);
+                System.out.println("Tid efter att hitta nästa bokstavskomb: " + totalTime);
 
                 /*
                 // Ta ut orden från filen
@@ -67,7 +65,9 @@ public class Konkordans{
                 for (int i = 0; i < wordWithIndex.size(); i++) {
                     io.println(wordWithIndex.get(i));
                 }*/
-                
+
+                System.out.println("ut1pos: " + ut1pos + " ut2pos: " + ut2pos);
+                // SKRIV I BINARYSEARCHLAST OM UT2POS ÄR == 0
                 long firstoccurrence = binarySearchFirst(RAFut, args[0], (long)ut1pos, (long)ut2pos);
                 long lastoccurrence = binarySearchLast(RAFut, args[0], (long)ut1pos, (long)ut2pos);
                 if(firstoccurrence >= 0){
@@ -81,11 +81,43 @@ public class Konkordans{
                 else {
                     io.println("lastoccurrence hittas inte");
                 }
-                io.println();
+                System.out.println();
 
-                io.println("args[0]: " + args[0] + " ut1pos: " + ut1pos + " ut2pos: " + ut2pos + " firstoccurrence: " + firstoccurrence + " line: " );
+                long freqPos = binarySearchFirst(RAFfreq, args[0], 0, RAFfreq.length());
+                RAFfreq.seek(freqPos);
+                System.out.println("Antal förekomster: " + RAFfreq.readLine());
+                
+                
+                long iteratingOffset = firstoccurrence;
+                System.out.println("firstoccurrence: " + firstoccurrence + " lastoccurrence: " + lastoccurrence);
+                RAFut.seek(firstoccurrence);
+                byte[] buff = new byte[80];
+                int counter = 0;
+                while (iteratingOffset <= lastoccurrence) {
+                    String s = RAFut.readLine();
+                    Pattern pattern = Pattern.compile(" ");
+                    String[] split = pattern.split(s); // [0] ord, [1] position
+                    if(iteratingOffset > 30)
+                        RAFkorpus.seek(Long.parseLong(split[1])-30);
+                    else
+                        RAFkorpus.seek(0);
 
-                io.println("countWords: " + countWords);
+                    RAFkorpus.read(buff,0, 60 + split[0].length());
+                    System.out.println(removeLineBreak(new String(buff, "ISO-8859-1")));
+                    iteratingOffset = RAFut.getFilePointer();
+
+                    counter++;
+                    if(counter == 24){
+                        System.out.println( System.currentTimeMillis() - startTime + " millisekunder har gått");
+                        System.out.print("Vill du skriva ut resten?(j/n):");
+                        String tempString = io.getWord();
+                        if(tempString.equals("j"))
+                            counter = 25;
+                        else
+                            break;
+                    }
+                }
+                
 
                 /*
                 // Hitta första indexet
@@ -188,6 +220,7 @@ public class Konkordans{
             RAFindex.close();
             RAFut.close();
             RAFkorpus.close();
+            RAFfreq.close();
         }
        catch(IOException e) {
            e.printStackTrace();
@@ -295,7 +328,6 @@ public class Konkordans{
         raf.seek(lowestOffset);
         String line = raf.readLine();
 
-
         if (containsWord(target,line) == true) {
             return lowestOffset;
         }
@@ -353,28 +385,23 @@ public class Konkordans{
     }
     
     private static long binarySearchLast(RandomAccessFile raf, String target, long lowestOffset, long highestOffset) throws IOException{
+        
         long off = highestOffset-2;
-        System.out.println("off " + off + " Highestoffset: " + highestOffset);
         // Går byte för byte bakåt för att hitta en linebreak
         while (off >= lowestOffset){
             raf.seek(off);
             if(((char) raf.readByte()) == '\n')
                 break;
             off--;
-            System.out.println("loop");
         }
         if(off < lowestOffset){
             raf.seek(lowestOffset);
-            System.out.println("off < lowestOffset off: " + off);
         }
         else{
             raf.seek(highestOffset);
-            System.out.println("off: " + off);
-
-            System.out.println(raf.readLine());
-        }
+ 
+       }
         String line = raf.readLine();
-        System.out.println("TEST " + line);
         /*
         if (containsWord(target,line) == true) {
             return highestOffset;
@@ -407,8 +434,6 @@ public class Konkordans{
             // Om line inte kunnat läsa till newline eller om line ligger före target
             if( (line == null) || line.compareTo(target) < 0 || containsWord(target, line) == true ){
                 low = mid + 1;
-                if(containsWord(target, line))
-                    System.out.println("containsWord fungerar, low: " + low + " mid: " + mid + " high: " + high);
             }
             else
                 high = mid;
