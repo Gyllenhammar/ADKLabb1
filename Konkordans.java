@@ -392,7 +392,7 @@ public class Konkordans{
             return returnValue;
         }
 
-        // Nothing found
+        // Inget ord hittat
         return -1;
 
     }
@@ -491,7 +491,7 @@ public class Konkordans{
             return returnValue;
         }
 
-        // Nothing found
+        // Inget ord hittat
         return -1;
     }
 
