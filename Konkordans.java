@@ -14,14 +14,17 @@ public class Konkordans{
             RandomAccessFile RAFindex = new RandomAccessFile("index", "r");
             RandomAccessFile RAFut = new RandomAccessFile("ut", "r");
             RandomAccessFile RAFkorpus = new RandomAccessFile("korpus", "r");
+            RandomAccessFile RAFfreq = new RandomAccessFile("freq", "r");
 
             if(args.length == 1) {
                 byte[] word1 = getWord(args[0]);
                 int ut2pos = 0;
-                ArrayList<String> wordWithIndex = new ArrayList<String>();
-                ArrayList<String> word = new ArrayList<String>();
-                ArrayList<Integer> index = new ArrayList<Integer>();
                 String line;
+
+                RAFut.seek(189178514);
+                System.out.println(RAFut.readLine());
+                RAFut.seek(189178513);
+                System.out.println(RAFut.readLine());
 
                 int indexpos = hashFunction(word1)*4-3; // Innehåller positionen för det sökta ordet i 'index'
                 RAFindex.seek((long)indexpos);
@@ -48,8 +51,9 @@ public class Konkordans{
                 long stopTime = System.currentTimeMillis();
                 long totalTime = stopTime-startTime;
 
-                io.println("Tid efter att hitta nästa bokstavskomb: " + totalTime);
+                System.out.println("Tid efter att hitta nästa bokstavskomb: " + totalTime);
 
+                /*
                 // Ta ut orden från filen
                 RAFut.seek((long)ut1pos);// Positionen för första ordet i filen 'ut'
                 while ((line = RAFut.readLine()) != null) {
@@ -60,8 +64,67 @@ public class Konkordans{
                 stopTime = System.currentTimeMillis();
                 totalTime = stopTime-startTime;
 
-                io.println("Tid att ta ut orden från filen: " + totalTime);
+                io.println("Tid att ta ut orden från filen: " + totalTime);*/
 
+                /*//DEBUG
+                for (int i = 0; i < wordWithIndex.size(); i++) {
+                    io.println(wordWithIndex.get(i));
+                }*/
+
+                System.out.println("ut1pos: " + ut1pos + " ut2pos: " + ut2pos);
+                // SKRIV I BINARYSEARCHLAST OM UT2POS ÄR == 0
+                long firstoccurrence = binarySearchFirst(RAFut, args[0], (long)ut1pos, (long)ut2pos);
+                long lastoccurrence = binarySearchLast(RAFut, args[0], (long)ut1pos, (long)ut2pos);
+                if(firstoccurrence >= 0){
+                    RAFut.seek(firstoccurrence);
+                    io.println("ut: " + RAFut.readLine());
+                }
+                if(lastoccurrence >= 0){
+                    RAFut.seek(lastoccurrence);
+                    io.println("ut: " + RAFut.readLine());
+                }
+                else {
+                    io.println("lastoccurrence hittas inte");
+                }
+                System.out.println();
+
+                long freqPos = binarySearchFirst(RAFfreq, args[0], 0, RAFfreq.length());
+                RAFfreq.seek(freqPos);
+                System.out.println("Antal förekomster: " + RAFfreq.readLine());
+                
+                
+                long iteratingOffset = firstoccurrence;
+                System.out.println("firstoccurrence: " + firstoccurrence + " lastoccurrence: " + lastoccurrence);
+                RAFut.seek(firstoccurrence);
+                byte[] buff = new byte[80];
+                int counter = 0;
+                while (iteratingOffset <= lastoccurrence) {
+                    String s = RAFut.readLine();
+                    Pattern pattern = Pattern.compile(" ");
+                    String[] split = pattern.split(s); // [0] ord, [1] position
+                    if(Integer.parseInt(split[1]) > 30)
+                        RAFkorpus.seek(Long.parseLong(split[1])-30);
+                    else
+                        RAFkorpus.seek(0);
+
+                    RAFkorpus.read(buff,0, 60 + split[0].length());
+                    System.out.println(removeLineBreak(new String(buff, "ISO-8859-1")));
+                    iteratingOffset = RAFut.getFilePointer();
+
+                    counter++;
+                    if(counter == 24){
+                        System.out.println( System.currentTimeMillis() - startTime + " millisekunder har gått");
+                        System.out.print("Vill du skriva ut resten?(j/n):");
+                        String tempString = io.getWord();
+                        if(tempString.equals("j"))
+                            counter = 25;
+                        else
+                            break;
+                    }
+                }
+                
+
+                /*
                 // Hitta första indexet
                 int first = -1;
                 for (int i = 0; i < wordWithIndex.size() && first == -1; i++) { 
@@ -72,7 +135,7 @@ public class Konkordans{
                 totalTime = stopTime-startTime;
 
                 io.println("Tid att hitta första indexet: " + totalTime + " index: " + index + " first: " + first + " size " + wordWithIndex.size());
-
+                
                 if(first == -1) {
                     io.println(args[0] + " finns inte i listan");
                     RAFindex.close();
@@ -80,7 +143,7 @@ public class Konkordans{
                     RAFkorpus.close();
                     io.close();
                     return;
-                }
+                }*/
                 // Hitta sista indexet
 
                 /* int last = word.lastIndexOf(args[0]); */
@@ -162,6 +225,7 @@ public class Konkordans{
             RAFindex.close();
             RAFut.close();
             RAFkorpus.close();
+            RAFfreq.close();
         }
        catch(IOException e) {
            e.printStackTrace();
@@ -214,7 +278,12 @@ public class Konkordans{
     }
 
     private static String removeLineBreak(String s) {
-        return s.replaceAll("\r\n", " ");
+        char[] cArray = s.toCharArray();
+        for (int i = 0; i < cArray.length; i++) {
+            if(cArray[i] == '\n')
+                cArray[i] = ' ';
+        }
+        return String.valueOf(cArray);
     }
     
     /*
@@ -265,21 +334,167 @@ public class Konkordans{
     }
 
 
-    private static long binarySearchFirst(RandomAccessFile raf, String s, long lowestIndex, long highestIndex) throws IOException{
-        raf.seek(lowestIndex);
-        String tempString = raf.readLine();
-        if(containsWord(s, tempString))
-            return lowestIndex;
+    private static long binarySearchFirst(RandomAccessFile raf, String target, long lowestOffset, long highestOffset) throws IOException{
+        if(highestOffset == 0)
+            highestOffset = raf.length()-1;
 
+        raf.seek(lowestOffset);
+        String line = raf.readLine();
+
+        if (containsWord(target,line) == true) {
+            return lowestOffset;
+        }
+
+        long low = lowestOffset;
+        long high = highestOffset;
+        long p = -1;
+
+
+        while (low < high) {
+
+            long mid = (low + high) >>> 1;
+            p = mid;
+
+            // Går byte för byte bakåt tills man hittat en linebreak
+            while (p >= lowestOffset) {
+                raf.seek(p);
+                char c = (char) raf.readByte();
+                if(c == '\n')
+                    break;
+                p--;
+            }
+            if(p < lowestOffset)
+                raf.seek(lowestOffset);
+
+            line = raf.readLine();
+
+            if( (line == null) || line.compareTo(target) < 0)
+                low = mid + 1;
+            else
+                high = mid;
+        }
+
+        p = low;
+        while (p >= lowestOffset){
+            raf.seek(p);
+            if(((char) raf.readByte()) == '\n')
+                break;
+            p--;
+        }
+        if(p < lowestOffset)
+            raf.seek(lowestOffset);
+
+        while(true){
+            long returnValue = raf.getFilePointer();
+            line = raf.readLine();
+            if(line == null || containsWord(target, line) == false)
+                break;
+            return returnValue;
+        }
+
+        // Nothing found
+        return -1;
 
     }
     
-    private static long binarySearchFirst(RandomAccessFile raf, String s, long lowestIndex, long highestIndex) throws IOException{
-        raf.seek(highestIndex);
-        String tempString = raf.readLine();
-        if(containsWord(s, tempString))
-            return highestIndex;
+    private static long binarySearchLast(RandomAccessFile raf, String target, long lowestOffset, long highestOffset) throws IOException{
+        String line = null;
+
+        // Om sista ordet
+        if(highestOffset == 0) {
+            long off = raf.length()-2;
+            // Går byte för byte bakåt för att hitta en linebreak
+            while (off >= lowestOffset){
+                raf.seek(off);
+                if(((char) raf.readByte()) == '\n')
+                    break;
+                off--;
+            }
+            if(off < lowestOffset)
+                raf.seek(lowestOffset);
+            
+            line = raf.readLine();
+            if (containsWord(target,line) == true) {
+
+                return off+1;
+            }
+        }
+
+        
+
+        long low = lowestOffset;
+        long mid = 0;
+        long high = highestOffset;
+        long p = -1;
+
+
+        while (low < high) {
+
+            mid = (low + high) >>> 1;
+            p = mid;
+
+            // Går byte för byte bakåt tills man hittat en linebreak
+            while (p >= lowestOffset) {
+                raf.seek(p);
+                char c = (char) raf.readByte();
+                if(c == '\n')
+                    break;
+                p--;
+            }
+            if(p < lowestOffset)
+                raf.seek(lowestOffset);
+
+            line = raf.readLine();
+
+            // Om line inte kunnat läsa till newline eller om line ligger före target
+            if( (line == null) || line.compareTo(target) < 0 || containsWord(target, line) == true ){
+                low = mid + 1;
+            }
+            else
+                high = mid;
+        }
+
+        p = mid;
+        // Går byte för byte bakåt för att hitta en linebreak
+        while (p >= lowestOffset){
+            raf.seek(p);
+            if(((char) raf.readByte()) == '\n')
+                break;
+            p--;
+        }
+        if(p < lowestOffset)
+            raf.seek(lowestOffset);
+
+        while(true){
+            long returnValue = raf.getFilePointer();
+            line = raf.readLine();
+
+            if(line == null || containsWord(target, line) == false){
+                if(raf.getFilePointer() > line.length()){
+                    p = returnValue-2;
+                    while (p >= lowestOffset){
+                        raf.seek(p);
+                        if(((char) raf.readByte()) == '\n')
+                            break;
+                        p--;
+                    }
+                    if(p < lowestOffset)
+                        raf.seek(lowestOffset);
+                    returnValue = raf.getFilePointer();
+                    line = raf.readLine();
+                }
+            }
+
+            if(line == null || containsWord(target, line) == false){
+                break;
+            }
+            return returnValue;
+        }
+
+        // Nothing found
+        return -1;
     }
+
 
 
 }
