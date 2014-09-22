@@ -15,9 +15,9 @@ public class Process {
         long startTime = System.currentTimeMillis();
 
         try {
-            RAFin = new RandomAccessFile( "/Users/andredanielsson/Documents/adk/ut", "r" );
-            File indexFile = new File( "/Users/andredanielsson/Documents/adklab1/index" );
-            File freqFile = new File("/Users/andredanielsson/Documents/adklab1/freq");
+            RAFin = new RandomAccessFile( "ut", "r" );
+            File indexFile = new File( "index" );
+            File freqFile = new File("freq");
 
             // Om det inte finns en fil för index, skapa en ny fil.
             if (indexFile.exists() == false)
